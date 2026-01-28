@@ -15,6 +15,8 @@ export function ensureSeedStories(): void {
     id: 'seed-the-lighthouse',
     title: 'The Lighthouse Keeper',
     author: 'Ada Marlowe',
+    description:
+      'A fogbound harbor and a keeper who has vanished from the tower.',
     lastModified: yesterday.toISOString(),
     nodes: [
       {
@@ -42,6 +44,8 @@ export function ensureSeedStories(): void {
     id: 'seed-neon-alley',
     title: 'Neon Alley',
     author: 'R. Vance',
+    description:
+      'A rain-slick cyber-noir chase through static-charged alleys.',
     lastModified: now.toISOString(),
     nodes: [
       {
