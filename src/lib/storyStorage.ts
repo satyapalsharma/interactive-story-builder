@@ -38,6 +38,7 @@ export class StoryStorage {
       id: story.id,
       title: story.title,
       author: story.author,
+      description: story.description,
       lastModified: new Date().toISOString(),
       nodes: story.nodes ?? [],
     };
@@ -49,6 +50,7 @@ export class StoryStorage {
       id: updated.id,
       title: updated.title,
       author: updated.author,
+      description: updated.description,
       lastModified: updated.lastModified,
     };
   }
