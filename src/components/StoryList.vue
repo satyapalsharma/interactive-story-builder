@@ -25,7 +25,9 @@ function formatLastModified(iso: string): string {
 
 function describeStory(story: StorySummary): string {
   const when = formatLastModified(story.lastModified);
-  return `Story "${story.title}" by ${story.author}, last modified ${when} (UTC).`;
+  const description =
+    story.description.length > 0 ? ` Description: ${story.description}.` : '';
+  return `Story "${story.title}" by ${story.author}, last modified ${when} (UTC).${description}`;
 }
 </script>
 
@@ -47,6 +49,13 @@ function describeStory(story: StorySummary): string {
             {{ story.title }}
           </h3>
           <p class="story-card__author">by {{ story.author }}</p>
+          <p
+            v-if="story.description.length > 0"
+            class="story-card__description"
+            data-testid="story-list-item-description"
+          >
+            {{ story.description }}
+          </p>
         </div>
         <time
           class="story-card__modified"
@@ -104,6 +113,12 @@ function describeStory(story: StorySummary): string {
 .story-card__author {
   margin: 0.15rem 0 0;
   color: #5c6470;
+  font-size: 0.85rem;
+}
+
+.story-card__description {
+  margin: 0.25rem 0 0;
+  color: #333;
   font-size: 0.85rem;
 }
 
