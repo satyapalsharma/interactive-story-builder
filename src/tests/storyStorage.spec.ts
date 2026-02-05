@@ -7,6 +7,7 @@ function makeStory(overrides: Partial<Story> = {}): Story {
     id: 'story-1',
     title: 'Demo Story',
     author: 'Test Author',
+    description: 'A demo story for tests',
     lastModified: new Date('2024-01-02T03:04:05Z').toISOString(),
     nodes: [],
     ...overrides,
@@ -28,6 +29,7 @@ describe('StoryStorage (memory fallback, no localStorage in node)', () => {
       id: 'story-1',
       title: 'Demo Story',
       author: 'Test Author',
+      description: 'A demo story for tests',
     });
     expect(Number.isFinite(Date.parse(summary.lastModified))).toBe(true);
   });
@@ -103,6 +105,7 @@ describe('isStorySummary boundary validation', () => {
     expect(isStorySummary(makeStory({ lastModified: 'not-a-date' }))).toBe(false);
     expect(isStorySummary(makeStory({ lastModified: String(Number.POSITIVE_INFINITY) }))).toBe(false);
     expect(isStorySummary(makeStory({ title: 7 as unknown as string }))).toBe(false);
+    expect(isStorySummary(makeStory({ description: 9 as unknown as string }))).toBe(false);
     expect(isStorySummary(null)).toBe(false);
     expect(isStorySummary(undefined)).toBe(false);
     expect(isStorySummary('plain')).toBe(false);
