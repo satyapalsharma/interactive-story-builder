@@ -14,13 +14,14 @@ export type Story = {
   id: string;
   title: string;
   author: string;
+  description: string;
   lastModified: string; // ISO 8601 UTC timestamp
   nodes: StoryNode[];
 };
 
 export type StorySummary = Pick<
   Story,
-  'id' | 'title' | 'author' | 'lastModified'
+  'id' | 'title' | 'author' | 'description' | 'lastModified'
 >;
 
 /**
@@ -68,6 +69,7 @@ export function isStorySummary(
     typeof v.id === 'string' &&
     typeof v.title === 'string' &&
     typeof v.author === 'string' &&
+    typeof v.description === 'string' &&
     typeof v.lastModified === 'string' &&
     isValidUtcTimestamp(v.lastModified)
   );
