@@ -2,6 +2,18 @@ export type StoryNode = {
   id: string;
   text: string;
   choices: StoryChoice[];
+  /**
+   * Optional canvas coordinates used by the node graph editor. Optional so
+   * that node data produced elsewhere (creation, seeding, import) does not
+   * need to supply a layout; the editor assigns one when missing.
+   */
+  position?: NodePosition;
+};
+
+/** A 2D position on the node graph canvas. */
+export type NodePosition = {
+  x: number;
+  y: number;
 };
 
 export type StoryChoice = {
