@@ -1,22 +1,48 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import StoryList from '@/components/StoryList.vue';
 import CreateStoryForm from '@/components/CreateStoryForm.vue';
-import type { StorySummary } from '@/types/story';
+import StoryEditorView from '@/components/StoryEditorView.vue';
+import { storyStorage } from '@/lib/storyStorage';
+import type { Story, StorySummary } from '@/types/story';
 
-// Bumped after a story is created; re-keys the list so it re-reads storage.
+// Bumped after a story is created or edited; re-keys the list so it re-reads storage.
 const listVersion = ref(0);
+
+// Story whose node editor is currently open, or null when the list is shown.
+const editingStoryId = ref<string | null>(null);
+const editingStory = computed<Story | null>(() => {
+  if (editingStoryId.value === null) return null;
+  return storyStorage.getStory(editingStoryId.value) ?? null;
+});
 
 function onStoryCreated(_summary: StorySummary) {
   listVersion.value += 1;
+}
+
+function onOpenStory(storyId: string) {
+  editingStoryId.value = storyId;
+}
+
+function onCloseEditor() {
+  editingStoryId.value = null;
 }
 </script>
 
 <template>
   <main>
     <h1>Interactive Story Builder</h1>
-    <CreateStoryForm @created="onStoryCreated" />
-    <StoryList :key="listVersion" />
+    <template v-if="editingStory !== null">
+      <StoryEditorView
+        :story="editingStory"
+        @updated="listVersion += 1"
+        @close="onCloseEditor"
+      />
+    </template>
+    <template v-else>
+      <CreateStoryForm @created="onStoryCreated" />
+      <StoryList :key="listVersion" @open="onOpenStory" />
+    </template>
   </main>
 </template>
 

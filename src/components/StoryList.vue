@@ -4,6 +4,11 @@ import { ensureSeedStories } from '@/lib/seedStories';
 import { storyStorage } from '@/lib/storyStorage';
 import type { StorySummary } from '@/types/story';
 
+const emit = defineEmits<{
+  /** The user asked to open the node editor for a story. */
+  (e: 'open', storyId: string): void;
+}>();
+
 const stories = ref<StorySummary[]>([]);
 
 onMounted(() => {
@@ -57,13 +62,24 @@ function describeStory(story: StorySummary): string {
             {{ story.description }}
           </p>
         </div>
-        <time
-          class="story-card__modified"
-          :datetime="story.lastModified"
-          data-testid="story-list-item"
-        >
-          {{ formatLastModified(story.lastModified) }}
-        </time>
+        <div class="story-card__actions">
+          <time
+            class="story-card__modified"
+            :datetime="story.lastModified"
+            data-testid="story-list-item"
+          >
+            {{ formatLastModified(story.lastModified) }}
+          </time>
+          <button
+            type="button"
+            class="story-card__edit"
+            :data-testid="`story-list-item-edit-${story.id}`"
+            :aria-label="`Edit nodes for ${story.title}`"
+            @click="emit('open', story.id)"
+          >
+            Edit nodes
+          </button>
+        </div>
       </li>
     </ul>
   </section>
@@ -122,9 +138,30 @@ function describeStory(story: StorySummary): string {
   font-size: 0.85rem;
 }
 
+.story-card__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
 .story-card__modified {
   color: #5c6470;
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+.story-card__edit {
+  border: 1px solid #c9cfda;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.story-card__edit:hover {
+  background: #f2f4f8;
 }
 </style>

@@ -1,6 +1,10 @@
 export type StoryNode = {
   id: string;
   text: string;
+  /** Short heading shown on the node card; optional, falls back to a text preview. */
+  title?: string;
+  /** CSS color string used to paint the node card background; validated at the boundary. */
+  backgroundColor?: string;
   choices: StoryChoice[];
   /**
    * Optional canvas coordinates used by the node graph editor. Optional so
