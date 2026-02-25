@@ -24,11 +24,14 @@ export const MAX_COLOR_LENGTH = 9;
  */
 export function isValidHexColor(value: unknown): boolean {
   if (typeof value !== 'string') return false;
+  // Reject control characters (e.g. newline injection) in the raw input so a
+  // color can never smuggle bytes past rendering.
+  if (/[\u0000-\u001f\u007f]/.test(value)) return false;
   const normalized = value.trim();
   if (normalized.length < 4 || normalized.length > MAX_COLOR_LENGTH) {
     return false;
   }
-  return /^#([0-9a-f]{3,4}|[0-9a-f]{6,8})$/i.test(normalized);
+  return /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized);
 }
 
 /**
