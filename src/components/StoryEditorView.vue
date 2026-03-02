@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import NodeEditor from '@/components/NodeEditor';
+import NodeEditor from '@/components/NodeEditor.vue';
 import {
   assignPositions,
   getConnections,
