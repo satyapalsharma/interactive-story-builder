@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import NodeEditor from '@/components/NodeEditor.vue';
 import {
   assignPositions,
+  connectNodes,
   getConnections,
 } from '@/lib/nodeGraph';
 import {
@@ -54,13 +55,19 @@ function onContentSaved(
     edit,
   );
   if (!result.ok) return;
+  persistNodes(result.nodes);
+}
 
+/**
+ * Persist updated node arrays back to storage, carrying session-assigned
+ * positions over the result so the session layout survives a save.
+ */
+function persistNodes(nextNodes: StoryNode[]): void {
   const story = storyStorage.getStory(props.story.id);
   if (story === undefined) return;
   const updated: Story = {
     ...story,
-    nodes: result.nodes.map((node, index) => {
-      // Carry session-assigned positions over the persisted result.
+    nodes: nextNodes.map((node) => {
       const position =
         nodes.value.find((existing) => existing.id === node.id)?.position;
       return position === undefined ? node : { ...node, position };
@@ -72,6 +79,120 @@ function onContentSaved(
 
 function nodeStyle(node: StoryNode) {
   return { backgroundColor: nodeBackground(node) };
+}
+
+// ---- Drag-to-connect interaction -----------------------------------------
+
+/**
+ * Native HTML5 drag state: the id of the node the user started dragging a
+ * new choice from, or null when no drag is in progress.
+ */
+const draggingSourceId = ref<string | null>(null);
+
+/** The id of the card under the pointer during a drag, for drop styling. */
+const dropTargetId = ref<string | null>(null);
+
+/** True while the user is dragging a new choice from a source node. */
+const isDragging = computed(() => draggingSourceId.value !== null);
+
+/** Whether a hovered node would be an invalid link destination. */
+function isInvalidTarget(nodeId: string | null): boolean {
+  return nodeId !== null && nodeId === draggingSourceId.value;
+}
+
+/** Whether a hovered node already has an outgoing choice from the source. */
+function isLinkedTarget(nodeId: string | null): boolean {
+  if (nodeId === null || draggingSourceId.value === null) return false;
+  const source = nodes.value.find((n) => n.id === draggingSourceId.value);
+  if (source === undefined) return false;
+  return source.choices.some((choice) => choice.targetNodeId === nodeId);
+}
+
+function onDragStart(event: DragEvent, node: StoryNode) {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', node.id);
+    event.dataTransfer.effectAllowed = 'link';
+  }
+  draggingSourceId.value = node.id;
+  dropTargetId.value = null;
+}
+
+function onDragEnd() {
+  draggingSourceId.value = null;
+  dropTargetId.value = null;
+}
+
+function onDragOver(event: DragEvent, node: StoryNode) {
+  // Only accept drops on a valid target; this also makes the browser show
+  // the "link" drop cursor and lets the drop actually fire.
+  if (draggingSourceId.value === null || node.id === draggingSourceId.value) {
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'link';
+  }
+  dropTargetId.value = node.id;
+}
+
+function onDragLeave(node: StoryNode) {
+  if (dropTargetId.value === node.id) {
+    dropTargetId.value = null;
+  }
+}
+
+/**
+ * Drop on a target node: confirm a new choice from the dragged source.
+ * The label defaults inside `connectNodes` (a truncated source-text
+ * preview); any rejected connection (self, duplicate) is surfaced in the
+ * status line instead of silently disappearing.
+ */
+function onDrop(event: DragEvent, node: StoryNode) {
+  event.preventDefault();
+  const sourceId = draggingSourceId.value;
+  draggingSourceId.value = null;
+  dropTargetId.value = null;
+
+  if (sourceId === null || sourceId === node.id) return;
+
+  const result = connectNodes(props.story.nodes, sourceId, node.id);
+  if (!result.ok) {
+    setStatus(result.error, 'error');
+    return;
+  }
+  const sourceNode = props.story.nodes.find((n) => n.id === sourceId);
+  const sourceHeading = sourceNode !== undefined ? nodeHeading(sourceNode) : sourceId;
+  setStatus(
+    `Added choice “${result.choice.label}” from ${sourceHeading} to ${nodeHeading(node)}.`,
+  );
+  persistNodes(result.nodes);
+}
+
+// ---- Connection status line -----------------------------------------------
+
+const statusMessage = ref('');
+const statusKind = ref<'info' | 'error'>('info');
+
+function setStatus(message: string, kind: 'info' | 'error' = 'info') {
+  statusMessage.value = message;
+  statusKind.value = kind;
+}
+
+// ---- Dragging state visual hints ------------------------------------------
+
+function cardClassList(node: StoryNode): string[] {
+  const classes: string[] = [];
+  if (node.id === selectedNodeId.value) classes.push('scene-card--selected');
+  if (isDragging.value && node.id === dropTargetId.value && !isInvalidTarget(node.id)) {
+    classes.push('scene-card--drop-target');
+  }
+  if (isDragging.value && isInvalidTarget(node.id)) {
+    classes.push('scene-card--drop-invalid');
+  }
+  if (isDragging.value && isLinkedTarget(node.id)) {
+    classes.push('scene-card--drop-linked');
+  }
+  return classes;
 }
 </script>
 
@@ -94,6 +215,20 @@ function nodeStyle(node: StoryNode) {
 
     <p class="story-editor__hint" data-testid="story-editor-hint">
       Click a scene card to edit its text, title and background color.
+      Drag a card onto another card to add a choice from the source to the
+      target.
+    </p>
+
+    <p
+      v-if="statusMessage !== ''"
+      class="story-editor__status"
+      :class="{
+        'story-editor__status--error': statusKind === 'error',
+      }"
+      :data-testid="statusKind === 'error' ? 'story-editor-status-error' : 'story-editor-status'"
+      :role="statusKind === 'error' ? 'alert' : 'status'"
+    >
+      {{ statusMessage }}
     </p>
 
     <div
@@ -103,34 +238,54 @@ function nodeStyle(node: StoryNode) {
       data-testid="story-editor-canvas"
     >
       <template v-for="node in nodes" :key="node.id">
-        <button
-          type="button"
-          class="scene-card"
-          :class="{ 'scene-card--selected': node.id === selectedNodeId }"
-          :style="nodeStyle(node)"
-          :aria-pressed="node.id === selectedNodeId"
-          :data-testid="`scene-card-${node.id}`"
-          @click="selectNode(node)"
+        <div
+          class="scene-card-wrap"
+          :class="{
+            'scene-card-wrap--dragging': node.id === draggingSourceId,
+          }"
+          :data-dragging-source="node.id === draggingSourceId ? 'true' : 'false'"
         >
-          <span
-            class="scene-card__heading"
-            :data-testid="`scene-card-title-${node.id}`"
+          <button
+            type="button"
+            class="scene-card"
+            :class="cardClassList(node)"
+            :style="nodeStyle(node)"
+            :aria-pressed="node.id === selectedNodeId"
+            :draggable="isDragging ? 'false' : 'true'"
+            :data-testid="`scene-card-${node.id}`"
+            @click="selectNode(node)"
+            @dragstart="onDragStart($event, node)"
+            @dragend="onDragEnd"
+            @dragover="onDragOver($event, node)"
+            @dragleave="onDragLeave(node)"
+            @drop="onDrop($event, node)"
           >
-            {{ nodeHeading(node) }}
-          </span>
-          <span
-            class="scene-card__text"
-            :data-testid="`scene-card-text-${node.id}`"
-          >
-            {{ node.text }}
-          </span>
-          <span
-            v-if="node.choices.length > 0"
-            class="scene-card__choice-count"
-          >
-            {{ node.choices.length }} choice{{ node.choices.length === 1 ? '' : 's' }}
-          </span>
-        </button>
+            <span
+              class="scene-card__heading"
+              :data-testid="`scene-card-title-${node.id}`"
+            >
+              {{ nodeHeading(node) }}
+            </span>
+            <span
+              class="scene-card__text"
+              :data-testid="`scene-card-text-${node.id}`"
+            >
+              {{ node.text }}
+            </span>
+            <span
+              v-if="node.choices.length > 0"
+              class="scene-card__choice-count"
+            >
+              {{ node.choices.length }} choice{{ node.choices.length === 1 ? '' : 's' }}
+            </span>
+            <span
+              class="scene-card__handle"
+              :data-testid="`scene-card-handle-${node.id}`"
+            >
+              + add choice
+            </span>
+          </button>
+        </div>
 
         <p
           v-for="connection in connections"
@@ -195,10 +350,33 @@ function nodeStyle(node: StoryNode) {
   font-size: 0.85rem;
 }
 
+.story-editor__status {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #e5f5ea;
+  color: #1d6b3a;
+  font-size: 0.9rem;
+}
+
+.story-editor__status--error {
+  background: #fdecec;
+  color: #c0392b;
+}
+
 .story-editor__canvas {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   gap: 1rem;
+}
+
+.scene-card-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.scene-card-wrap--dragging {
+  opacity: 0.6;
 }
 
 .scene-card {
@@ -210,8 +388,12 @@ function nodeStyle(node: StoryNode) {
   border: 1px solid #d8dde5;
   border-radius: 8px;
   padding: 0.75rem 1rem;
-  cursor: pointer;
+  cursor: grab;
   font: inherit;
+}
+
+.scene-card:active {
+  cursor: grabbing;
 }
 
 .scene-card:hover {
@@ -221,6 +403,22 @@ function nodeStyle(node: StoryNode) {
 .scene-card--selected {
   outline: 3px solid #2b6cb0;
   outline-offset: 1px;
+}
+
+.scene-card--drop-target {
+  border-color: #2b6cb0;
+  box-shadow: 0 0 0 2px rgba(43, 108, 176, 0.35);
+}
+
+.scene-card--drop-invalid {
+  border-style: dashed;
+  border-color: #c0392b;
+  cursor: not-allowed;
+}
+
+.scene-card--drop-linked {
+  border-color: #5c6470;
+  opacity: 0.65;
 }
 
 .scene-card__heading {
@@ -240,6 +438,13 @@ function nodeStyle(node: StoryNode) {
 .scene-card__choice-count {
   font-size: 0.75rem;
   color: #5c6470;
+}
+
+.scene-card__handle {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: #2b6cb0;
+  cursor: grab;
 }
 
 .scene-card__link {
