@@ -4,6 +4,7 @@ import NodeEditor from '@/components/NodeEditor.vue';
 import {
   assignPositions,
   connectNodes,
+  deleteChoice,
   getConnections,
 } from '@/lib/nodeGraph';
 import {
@@ -141,6 +142,42 @@ function onDragLeave(node: StoryNode) {
   }
 }
 
+// ---- Delete-connection interaction --------------------------------------
+
+/**
+ * Remove a single choice link. `sourceId` and `choiceId` identify the
+ * specific edge to drop; `deleteChoice` returns a new node array with that
+ * choice gone from its source node (other nodes are untouched). The result
+ * is persisted so the deletion survives a reload, and a confirmation is
+ * shown in the status line. `deleteChoice` is a safe no-op when the source
+ * node or the choice no longer exists (e.g. a double-click on a stale row),
+ * so calling it with unknown ids never corrupts the graph.
+ */
+function removeConnection(
+  sourceId: string,
+  choiceId: string,
+  label: string,
+) {
+  const result = deleteChoice(props.story.nodes, sourceId, choiceId);
+  persistNodes(result);
+  setStatus(`Removed choice “${label}”.`);
+}
+
+/**
+ * Context-menu (right-click) handler for a connection row: confirms the
+ * deletion directly, so a link can be removed without locating the visible
+ * button. The browser's default context menu is suppressed.
+ */
+function onContextRemoveConnection(
+  event: MouseEvent,
+  sourceId: string,
+  choiceId: string,
+  label: string,
+) {
+  event.preventDefault();
+  removeConnection(sourceId, choiceId, label);
+}
+
 /**
  * Drop on a target node: confirm a new choice from the dragged source.
  * The label defaults inside `connectNodes` (a truncated source-text
@@ -216,7 +253,8 @@ function cardClassList(node: StoryNode): string[] {
     <p class="story-editor__hint" data-testid="story-editor-hint">
       Click a scene card to edit its text, title and background color.
       Drag a card onto another card to add a choice from the source to the
-      target.
+      target. Right-click a connection (or use its “remove” button) to
+      delete it.
     </p>
 
     <p
@@ -293,9 +331,21 @@ function cardClassList(node: StoryNode): string[] {
           :key="connection.choice.id"
           class="scene-card__link"
           :data-testid="`scene-link-${node.id}-${connection.choice.targetNodeId}`"
+          @contextmenu="onContextRemoveConnection($event, connection.source.id, connection.choice.id, connection.choice.label)"
         >
-          {{ connection.choice.label }} &rarr;
-          {{ nodes.find((n) => n.id === connection.choice.targetNodeId)?.text.slice(0, 24) }}
+          <span class="scene-card__link-text">
+            {{ connection.choice.label }} &rarr;
+            {{ nodes.find((n) => n.id === connection.choice.targetNodeId)?.text.slice(0, 24) }}
+          </span>
+          <button
+            type="button"
+            class="scene-card__link-remove"
+            :aria-label="`Remove choice ${connection.choice.label}`"
+            :data-testid="`scene-link-remove-${node.id}-${connection.choice.id}`"
+            @click="removeConnection(node.id, connection.choice.id, connection.choice.label)"
+          >
+            remove
+          </button>
         </p>
       </template>
     </div>
@@ -452,5 +502,40 @@ function cardClassList(node: StoryNode): string[] {
   margin: 0;
   color: #5c6470;
   font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  cursor: context-menu;
+}
+
+.scene-card__link:hover {
+  background: #f2f4f8;
+}
+
+.scene-card__link-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-card__link-remove {
+  flex: 0 0 auto;
+  border: 1px solid #c9cfda;
+  border-radius: 5px;
+  background: #fff;
+  color: #c0392b;
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+
+.scene-card__link-remove:hover {
+  background: #fdecec;
+  border-color: #c0392b;
 }
 </style>
