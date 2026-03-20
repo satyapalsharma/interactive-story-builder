@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_CHOICE_LABEL_LENGTH,
   connectNodes,
+  deleteChoice,
   getConnections,
 } from '@/lib/nodeGraph';
 import type { StoryNode } from '@/types/story';
@@ -89,5 +90,65 @@ describe('connectNodes', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]?.source.id).toBe('start');
     expect(connections[0]?.target.id).toBe('tower');
+  });
+});
+
+describe('deleteChoice', () => {
+  function withChoice(): StoryNode[] {
+    return [
+      {
+        id: 'start',
+        text: 'Once upon a time.',
+        choices: [
+          { id: 'c1', label: 'Climb', targetNodeId: 'tower' },
+          { id: 'c2', label: 'Row', targetNodeId: 'shore' },
+        ],
+      },
+      { id: 'tower', text: 'The keeper is gone.', choices: [] },
+      { id: 'shore', text: 'A rowboat drifts ashore.', choices: [] },
+    ];
+  }
+
+  it('removes the named choice and keeps the rest of that node intact', () => {
+    const result = deleteChoice(withChoice(), 'start', 'c1');
+    const start = result.find((n) => n.id === 'start');
+    expect(start?.choices).toHaveLength(1);
+    expect(start?.choices[0]?.id).toBe('c2');
+    // Other nodes are not touched.
+    expect(result.find((n) => n.id === 'tower')?.choices).toHaveLength(0);
+  });
+
+  it('is a no-op when the source node does not exist', () => {
+    const input = withChoice();
+    const result = deleteChoice(input, 'nope', 'c1');
+    // No node is affected, so every element is the same reference and the
+    // original array is untouched.
+    expect(result).toHaveLength(input.length);
+    for (let i = 0; i < input.length; i += 1) {
+      expect(result[i]).toBe(input[i]);
+    }
+    expect(input.find((n) => n.id === 'start')?.choices).toHaveLength(2);
+  });
+
+  it('is a no-op when the choice does not exist on the node', () => {
+    const input = withChoice();
+    const result = deleteChoice(input, 'start', 'nope');
+    // Unchanged references are preserved for the node and its choices.
+    const start = result.find((n) => n.id === 'start');
+    expect(start).toBe(input.find((n) => n.id === 'start'));
+  });
+
+  it('does not mutate the input array', () => {
+    const input = withChoice();
+    deleteChoice(input, 'start', 'c1');
+    expect(input.find((n) => n.id === 'start')?.choices).toHaveLength(2);
+  });
+
+  it('removes every connection once the target node is deleted elsewhere', () => {
+    const input = withChoice();
+    const after = deleteChoice(input, 'start', 'c1');
+    const connections = getConnections(after);
+    expect(connections).toHaveLength(1);
+    expect(connections[0]?.choice.id).toBe('c2');
   });
 });
