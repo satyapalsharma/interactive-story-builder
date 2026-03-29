@@ -7,6 +7,8 @@ import type { StorySummary } from '@/types/story';
 const emit = defineEmits<{
   /** The user asked to open the node editor for a story. */
   (e: 'open', storyId: string): void;
+  /** The user asked to preview-read a story from its start node. */
+  (e: 'read', storyId: string): void;
 }>();
 
 const stories = ref<StorySummary[]>([]);
@@ -78,6 +80,15 @@ function describeStory(story: StorySummary): string {
             @click="emit('open', story.id)"
           >
             Edit nodes
+          </button>
+          <button
+            type="button"
+            class="story-card__read"
+            :data-testid="`story-list-item-read-${story.id}`"
+            :aria-label="`Read ${story.title}`"
+            @click="emit('read', story.id)"
+          >
+            Read story
           </button>
         </div>
       </li>
@@ -151,7 +162,8 @@ function describeStory(story: StorySummary): string {
   white-space: nowrap;
 }
 
-.story-card__edit {
+.story-card__edit,
+.story-card__read {
   border: 1px solid #c9cfda;
   border-radius: 6px;
   background: #fff;
@@ -163,5 +175,14 @@ function describeStory(story: StorySummary): string {
 
 .story-card__edit:hover {
   background: #f2f4f8;
+}
+
+.story-card__read {
+  border-color: #2b6cb0;
+  color: #2b6cb0;
+}
+
+.story-card__read:hover {
+  background: #e8f0fb;
 }
 </style>

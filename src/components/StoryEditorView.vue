@@ -24,6 +24,8 @@ const emit = defineEmits<{
   (e: 'updated'): void;
   /** The editor was dismissed (close button); nothing was saved. */
   (e: 'close'): void;
+  /** The user wants to preview-read this story from its start node. */
+  (e: 'read', storyId: string): void;
 }>();
 
 // Assign missing canvas positions lazily and keep them for the session.
@@ -240,14 +242,24 @@ function cardClassList(node: StoryNode): string[] {
         <h2 class="story-editor__title">{{ story.title }}</h2>
         <p class="story-editor__author">by {{ story.author }}</p>
       </div>
-      <button
-        type="button"
-        class="story-editor__close"
-        data-testid="story-editor-close"
-        @click="emit('close')"
-      >
-        Close editor
-      </button>
+      <div class="story-editor__header-actions">
+        <button
+          type="button"
+          class="story-editor__read"
+          data-testid="story-editor-read"
+          @click="emit('read', story.id)"
+        >
+          Read story
+        </button>
+        <button
+          type="button"
+          class="story-editor__close"
+          data-testid="story-editor-close"
+          @click="emit('close')"
+        >
+          Close editor
+        </button>
+      </div>
     </header>
 
     <p class="story-editor__hint" data-testid="story-editor-hint">
@@ -383,6 +395,25 @@ function cardClassList(node: StoryNode): string[] {
   margin: 0.15rem 0 0;
   color: #5c6470;
   font-size: 0.85rem;
+}
+
+.story-editor__header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.story-editor__read {
+  border: 1px solid #2b6cb0;
+  border-radius: 6px;
+  background: #fff;
+  color: #2b6cb0;
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.story-editor__read:hover {
+  background: #e8f0fb;
 }
 
 .story-editor__close {
