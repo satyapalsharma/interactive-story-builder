@@ -1,4 +1,4 @@
-import type { Story, StorySummary } from '@/types/story';
+import type { Story, StoryNode, StorySummary } from '@/types/story';
 import { isStorySummary } from '@/types/story';
 
 const STORAGE_KEY = 'interactive-story-builder:stories';
@@ -26,9 +26,16 @@ export class StoryStorage {
     return summaries;
   }
 
+  /**
+   * Look up a single story by id. The entry is coerced through
+   * {@link sanitizeStory} so the caller always receives a well-formed
+   * `Story` (in particular a real `nodes` array), never raw deserialized
+   * JSON. Returns `undefined` when the id is not found.
+   */
   getStory(id: string): Story | undefined {
     const raw = this.readRaw();
-    return raw.find((s) => s.id === id);
+    const found = raw.find((s) => s.id === id);
+    return found === undefined ? undefined : sanitizeStory(found);
   }
 
   /** Insert or replace a story and stamp it with a fresh modification time. */
@@ -40,7 +47,9 @@ export class StoryStorage {
       author: story.author,
       description: story.description,
       lastModified: new Date().toISOString(),
-      nodes: story.nodes ?? [],
+      nodes: (Array.isArray(story.nodes) ? story.nodes : []).filter(
+        isStoryNode,
+      ),
     };
     const raw = this.readRaw();
     const next = raw.filter((s) => s.id !== updated.id);
@@ -70,7 +79,7 @@ export class StoryStorage {
         if (!json) return [];
         const parsed: unknown = JSON.parse(json);
         if (!Array.isArray(parsed)) return [];
-        return parsed;
+        return parsed.filter(isStoryLike).map(sanitizeStory);
       } catch {
         return [];
       }
@@ -91,6 +100,50 @@ export class StoryStorage {
     this.memory.clear();
     for (const s of stories) this.memory.set(s.id, s);
   }
+}
+
+/**
+ * A deserialized entry is at least story-shaped when it is a plain object
+ * carrying string id/title/author/description/lastModified. Anything else
+ * (null, primitive, missing fields) is dropped wholesale.
+ */
+function isStoryLike(value: unknown): value is Story {
+  if (value === null || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'string' &&
+    typeof v.title === 'string' &&
+    typeof v.author === 'string' &&
+    typeof v.description === 'string' &&
+    typeof v.lastModified === 'string'
+  );
+}
+
+/**
+ * Type guard for a single node entry read from untrusted JSON: it must be a
+ * plain object with a string id, string text, and a choices array.
+ */
+function isStoryNode(value: unknown): value is StoryNode {
+  if (value === null || typeof value !== 'object') return false;
+  const node = value as Partial<StoryNode>;
+  return (
+    typeof node.id === 'string' &&
+    typeof node.text === 'string' &&
+    Array.isArray(node.choices)
+  );
+}
+
+/**
+ * Coerce a deserialized entry into a well-formed `Story` for in-memory use.
+ * The critical guarantee: `nodes` is always a real, filtered array (empty
+ * when the source was missing/corrupt), so the reader and editor can
+ * iterate it without crashing on `undefined`/non-array data.
+ */
+function sanitizeStory(entry: Story): Story {
+  const nodes: StoryNode[] = Array.isArray(entry.nodes)
+    ? entry.nodes.filter(isStoryNode)
+    : [];
+  return { ...entry, nodes };
 }
 
 export const storyStorage = new StoryStorage();
