@@ -12,6 +12,7 @@ import {
   nodeHeading,
   updateNodeContent,
 } from '@/lib/nodeContent';
+import { downloadStory, storyFileName } from '@/lib/storyExport';
 import { storyStorage } from '@/lib/storyStorage';
 import type { Story, StoryNode } from '@/types/story';
 
@@ -217,6 +218,25 @@ function setStatus(message: string, kind: 'info' | 'error' = 'info') {
   statusKind.value = kind;
 }
 
+/**
+ * Export the story as a JSON file for backup. The exported document is
+ * always the latest persisted state (freshly re-read from storage), so an
+ * unsaved session edit cannot leak a stale copy out of the app; the
+ * download is reported through the status line.
+ */
+function exportStory() {
+  const current = storyStorage.getStory(props.story.id) ?? props.story;
+  const ok = downloadStory(current);
+  if (ok) {
+    setStatus(`Exported “${storyFileName(current)}”.`);
+  } else {
+    setStatus(
+      'Export failed: this browser cannot trigger file downloads.',
+      'error',
+    );
+  }
+}
+
 // ---- Dragging state visual hints ------------------------------------------
 
 function cardClassList(node: StoryNode): string[] {
@@ -250,6 +270,15 @@ function cardClassList(node: StoryNode): string[] {
           @click="emit('read', story.id)"
         >
           Read story
+        </button>
+        <button
+          type="button"
+          class="story-editor__export"
+          data-testid="story-editor-export"
+          aria-label="Export story as JSON"
+          @click="exportStory"
+        >
+          Export JSON
         </button>
         <button
           type="button"
@@ -414,6 +443,20 @@ function cardClassList(node: StoryNode): string[] {
 
 .story-editor__read:hover {
   background: #e8f0fb;
+}
+
+.story-editor__export {
+  border: 1px solid #c9cfda;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.story-editor__export:hover {
+  background: #f2f4f8;
+  border-color: #2b6cb0;
 }
 
 .story-editor__close {
