@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import StoryList from '@/components/StoryList.vue';
 import CreateStoryForm from '@/components/CreateStoryForm.vue';
+import ImportStoryForm from '@/components/ImportStoryForm.vue';
 import StoryEditorView from '@/components/StoryEditorView.vue';
 import StoryReader from '@/components/StoryReader.vue';
 import { storyStorage } from '@/lib/storyStorage';
@@ -25,6 +26,10 @@ const readingStory = computed<Story | null>(() => {
 });
 
 function onStoryCreated(_summary: StorySummary) {
+  listVersion.value += 1;
+}
+
+function onStoryImported(_storyId: string) {
   listVersion.value += 1;
 }
 
@@ -66,6 +71,7 @@ function onCloseReader() {
     </template>
     <template v-else>
       <CreateStoryForm @created="onStoryCreated" />
+      <ImportStoryForm @imported="onStoryImported" />
       <StoryList
         :key="listVersion"
         @open="onOpenStory"
